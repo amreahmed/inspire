@@ -1,7 +1,8 @@
 import { validateRequest } from "@/auth";
 import FollowButton from "@/components/FollowButton";
 import FollowerCount from "@/components/FollowerCount";
-import TrendsSideBar from "@/components/TrendsSideBar";
+import Linkify from "@/components/Linkify";
+import TrendsSidebar from "@/components/TrendsSideBar";
 import UserAvatar from "@/components/UserAvatar";
 import prisma from "@/lib/prisma";
 import { FollowerInfo, getUserDataSelect, UserData } from "@/lib/types";
@@ -10,15 +11,13 @@ import { formatDate } from "date-fns";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import UserPosts from "./UserPosts";
-import Linkify from "@/components/Linkify";
 import EditProfileButton from "./EditProfileButton";
+import UserPosts from "./UserPosts";
 
 interface PageProps {
   params: { username: string };
 }
 
-// Cached fetch function for user data
 const getUser = cache(async (username: string, loggedInUserId: string) => {
   const user = await prisma.user.findFirst({
     where: {
@@ -31,13 +30,13 @@ const getUser = cache(async (username: string, loggedInUserId: string) => {
   });
 
   if (!user) notFound();
+
   return user;
 });
 
 export async function generateMetadata({
-  params,
+  params: { username },
 }: PageProps): Promise<Metadata> {
-  const { username } = await params;
   const { user: loggedInUser } = await validateRequest();
 
   if (!loggedInUser) return {};
@@ -49,47 +48,45 @@ export async function generateMetadata({
   };
 }
 
-export default async function Page({ params }: PageProps) {
-  const { username } = await params;
-  const { user: loggedinUser } = await validateRequest();
+export default async function Page({ params: { username } }: PageProps) {
+  const { user: loggedInUser } = await validateRequest();
 
-  if (!loggedinUser) {
+  if (!loggedInUser) {
     return (
       <p className="text-destructive">
-        You&apst;re not authorized to view this page.
+        You&apos;re not authorized to view this page.
       </p>
     );
   }
 
-  const user = await getUser(username, loggedinUser.id);
+  const user = await getUser(username, loggedInUser.id);
 
   return (
     <main className="flex w-full min-w-0 gap-5">
       <div className="w-full min-w-0 space-y-5">
-        <UserProfile user={user} loggedinUserId={loggedinUser.id} />
+        <UserProfile user={user} loggedInUserId={loggedInUser.id} />
         <div className="rounded-2xl bg-card p-5 shadow-sm">
           <h2 className="text-center text-2xl font-bold">
-            {user.id === loggedinUser.id
-              ? "Your posts"
-              : `${user.displayName}'s posts`}
+            {user.displayName}&apos;s posts
           </h2>
         </div>
         <UserPosts userId={user.id} />
       </div>
-      <TrendsSideBar />
+      <TrendsSidebar />
     </main>
   );
 }
+
 interface UserProfileProps {
   user: UserData;
-  loggedinUserId: string;
+  loggedInUserId: string;
 }
-// Updated UserProfile component as synchronous for easier rendering
-function UserProfile({ user, loggedinUserId }: UserProfileProps) {
-  const FollowerInfo: FollowerInfo = {
+
+async function UserProfile({ user, loggedInUserId }: UserProfileProps) {
+  const followerInfo: FollowerInfo = {
     followers: user._count.followers,
     isFollowedByUser: user.followers.some(
-      ({ followerId }) => followerId === loggedinUserId,
+      ({ followerId }) => followerId === loggedInUserId,
     ),
   };
 
@@ -98,19 +95,14 @@ function UserProfile({ user, loggedinUserId }: UserProfileProps) {
       <UserAvatar
         avatarUrl={user.avatarUrl}
         size={250}
-        className="mx-auto max-h-60 max-w-60 rounded-full"
+        className="mx-auto size-full max-h-60 max-w-60 rounded-full"
       />
       <div className="flex flex-wrap gap-3 sm:flex-nowrap">
         <div className="me-auto space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
+          <div>
             <h1 className="text-3xl font-bold">{user.displayName}</h1>
-            {user.username.toLowerCase() === "amr" && (
-              <>
-                
-              </>
-            )}
+            <div className="text-muted-foreground">@{user.username}</div>
           </div>
-          <div className="text-muted-foreground">@{user.username}</div>
           <div>Member since {formatDate(user.createdAt, "MMM d, yyyy")}</div>
           <div className="flex items-center gap-3">
             <span>
@@ -119,13 +111,13 @@ function UserProfile({ user, loggedinUserId }: UserProfileProps) {
                 {formatNumber(user._count.posts)}
               </span>
             </span>
-            <FollowerCount userId={user.id} initialState={FollowerInfo} />
+            <FollowerCount userId={user.id} initialState={followerInfo} />
           </div>
         </div>
-        {user.id === loggedinUserId ? (
+        {user.id === loggedInUserId ? (
           <EditProfileButton user={user} />
         ) : (
-          <FollowButton userId={user.id} initialState={FollowerInfo} />
+          <FollowButton userId={user.id} initialState={followerInfo} />
         )}
       </div>
       {user.bio && (
